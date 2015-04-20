@@ -1,0 +1,263 @@
+from maya import cmds
+import json
+from functools import partial
+ 
+
+# this script brings up a UI, that can be used to make simple prop rigging and animation more efficient
+# it was originally created for a specific file (buggy by David Schneider), but can also be used for other maya scenes as well
+# for questions, regarding this file, contact davidschneider93@web.de
+# author: Stefan Wezel, April 2015
+# for feedback or questions, contact stefan_wezel@gmx.de
+# special thanks to Arash Hosseini and David Schneider and my mom (not to Brian Brossmer, because he sucks)
+# use pythons help() function for further information
+# -> help(buggyUI)
+
+
+
+
+class BuggyUI():
+		"""
+		In order for this script to work, create a folder called "tmp" on your C:\ harddrive (this is where transformation data will be stored in).
+		Then save the script to your maya script path (default is: C:\Users\Student\Documents\maya\(your version)\scripts).
+		To bring up the UI, run:
+
+		import buggyUI
+		reload (buggyUI)
+		buggyUI.BuggyUI()
+
+		from the script editor in a python tab, and create a shelf button, if you want.
+		"""
+		def __init__ (self):
+				if cmds.window("buggyUI", exists = True):
+						cmds.deleteUI("buggyUI")
+ 
+				#create widgets
+				self.widgets = {}
+ 
+				self.widgets["window"] = cmds.window("buggyUI", title = "still a little buggy...", w = 430, h = 250, mnb = False, mxb = False, bgc = (0.22,0.22,0.22))
+ 
+				#create the formlayout
+				self.widgets["formLayout"] = cmds.formLayout(w = 430, h = 250)
+ 
+
+				#create buttons
+				#create prop rig buttons
+				self.widgets["createButton"] = cmds.button(label = "Create Prop Rig", w = 200, h = 40,  c = self.prop_rig, bgc = (0.35,0.35,0.35))
+				self.widgets["destroyButton"] = cmds.button(label = "Destroy Prop Rig", w = 200, h = 40, c = self.destroy_rig, bgc = (0.35,0.35,0.35))
+ 
+				#create zero out button
+				self.widgets["zeroButton"] = cmds.button(label = "Set Transformation to Default", w = 200, h = 40, c = self.evaluate_transformation, bgc = (0.35,0.35,0.35))
+ 
+				#create check boxes
+				self.widgets["checkBox1"] = cmds.checkBox("checkBox1", label = "Translate", v = 1)
+				self.widgets["checkBox2"] = cmds.checkBox("checkBox2",label = "Rotate", v = 1)
+				self.widgets["checkBox3"] = cmds.checkBox("checkBox3",label = "Scale", v = 0)
+ 
+				#create the json buttons
+				self.widgets["saveButton"] = cmds.button(label = "Save Position", w = 200, h = 40, c = self.store_data, bgc = (0.35,0.35,0.35))
+				self.widgets["restoreButton"] = cmds.button(label = "Restore Position", w = 200, h = 40, c = self.retrieve_data, bgc = (0.35,0.35,0.35))
+
+
+
+				#query the values of the checkboxes
+				checkBox1Value = cmds.checkBox(self.widgets["checkBox1"], q = True, v = True)
+				checkBox2Value = cmds.checkBox(self.widgets["checkBox2"], q = True, v = True)
+				checkBox3Value = cmds.checkBox(self.widgets["checkBox3"], q = True, v = True)
+ 
+ 
+				#place buttons 
+				#place the top row buttons
+				cmds.formLayout(self.widgets["formLayout"], edit = True, attachForm = [(self.widgets["createButton"], 'top', 10), (self.widgets["createButton"], 'left',  10)] )
+				cmds.formLayout(self.widgets["formLayout"], edit = True, attachForm = [(self.widgets["destroyButton"], 'top', 10), (self.widgets["destroyButton"], 'left',  220)] )
+ 
+			   
+				#place the zero out button
+				cmds.formLayout(self.widgets["formLayout"], edit = True, attachForm = [(self.widgets["zeroButton"], 'top', 90), (self.widgets["zeroButton"], 'left',  10 + 107.5)] )
+ 
+ 
+				#place the chack boxes
+				cmds.formLayout(self.widgets["formLayout"], edit = True, attachForm = [(self.widgets["checkBox1"], 'top', 140), (self.widgets["checkBox1"], 'left', 10 + 107.5)] )
+				cmds.formLayout(self.widgets["formLayout"], edit = True, attachForm = [(self.widgets["checkBox2"], 'top', 140), (self.widgets["checkBox2"], 'left',  80 + 107.5)] )
+				cmds.formLayout(self.widgets["formLayout"], edit = True, attachForm = [(self.widgets["checkBox3"], 'top', 140), (self.widgets["checkBox3"], 'left',  150 + 107.5)] )
+ 
+ 
+				#place the json buttons
+				cmds.formLayout(self.widgets["formLayout"], edit = True, attachForm = [(self.widgets["saveButton"], 'top', 200), (self.widgets["saveButton"], 'left',  10)])
+				cmds.formLayout(self.widgets["formLayout"], edit = True, attachForm = [(self.widgets["restoreButton"], 'top', 200), (self.widgets["restoreButton"], 'left',  220)])
+
+				cmds.showWindow(self.widgets["window"])
+				cmds.window(self.widgets["window"], edit = True, w= 430, h = 250)
+
+
+
+
+		def props_list(self, *args):
+				"""
+				creates a list, of selected objects
+				"""
+				self.sel = cmds.ls(sl = True)
+
+
+
+
+		def prop_rig(self, *args):
+				"""
+				creates a simple rig for selected objects
+				"""
+				#create group from selected objects and treat them as obj
+				self.props_list()
+				# this parameter needs to be adaptable
+				if len(self.sel) > 1:
+						#check if override is already enabled. If so, disable
+						for i in self.sel:
+							cmds.setAttr(i + '.overrideEnabled', 0)
+
+						obj = cmds.group(self.sel)
+
+				else:
+						obj = self.sel[0]
+ 
+				cmds.xform(obj, cp = True)
+				p = cmds.xform(obj, q = True, rp = True, ws = True)
+				r = cmds.xform(obj, q = True, ro = True)
+				cmds.select(clear = True)
+				
+				#create skeleton
+				j = cmds.joint()
+				cmds.hide(j)
+				cmds.xform(j, t = p, ws = True)
+
+				#parent constrain geo to joint
+				cmds.parentConstraint(j, obj, mo = True)
+				#lock geometry
+ 
+				# controller
+				#create controller (circle)
+				c = cmds.circle(nr = (0,1,0)) #set size of controller to be more fitting
+				
+				#group freeze controller
+				g = cmds.group(c, n = c[0] + "_grp")
+				
+				#place controller at center of geo
+				cmds.xform(g, t = p, ro = r)
+				
+				#parent constrain joint to controller
+				cmds.parentConstraint(c, j, mo = True)
+				cmds.scaleConstraint(c, obj, mo = True)
+
+				#lock geo
+				cmds.setAttr(obj + '.overrideEnabled', 1)
+				cmds.setAttr(obj + '.overrideDisplayType', 2)
+				
+				#make group out of the whole shit
+				cmds.group(g, j, obj, n = obj + "_grp")
+				cmds.select(c)
+
+
+
+
+		def destroy_rig(self, *args):
+				"""
+				destroys any prop rig, that was created with
+				the prop rig button
+				"""
+				root = cmds.ls(sl =True, l=True)[0].split('|')[1]
+				children = cmds.listRelatives(root, ad = 1)
+				shape = cmds.ls(children, type = "mesh")
+				constraints = cmds.ls(children, type = "constraint")
+				cmds.delete(constraints)
+				geo = cmds.listRelatives(shape, p = 1)
+				cmds.parent(geo, w = 1)
+				cmds.delete(root)
+				cmds.setAttr(geo[0] + '.overrideEnabled', 0)
+				cmds.setAttr(geo[0] + '.overrideDisplayType', 0)
+
+
+
+		#raises error when attr is locked or has connection
+		def evaluate_transformation(self, *args):
+				"""
+				queries the values from the checkboxes,
+				and sets transformation according to it, if zero out 
+				button gets pressed
+				"""
+			   
+				query_translation = cmds.checkBox("checkBox1", q = 1, v  = 1)
+				query_rotation = cmds.checkBox("checkBox2", q = 1, v  = 1)
+				query_scale = cmds.checkBox("checkBox3", q = 1, v  = 1)
+ 
+				self.props_list()
+ 
+				if query_translation:
+						for obj in self.sel:
+								cmds.xform(obj, t = (0,0,0))
+ 
+				if query_rotation:
+						for obj in self.sel:
+								cmds.xform(obj, ro = (0,0,0))
+ 
+				if query_scale:
+						for obj in self.sel:
+								cmds.setAttr(obj + ".scaleX", 1)
+								cmds.setAttr(obj + ".scaleY", 1)
+								cmds.setAttr(obj + ".scaleZ", 1)
+
+
+
+
+		def store_data(self, *args):
+				"""
+				stores transformation data from selected objects
+				in json file, which
+				gets overwritten if executed again
+				"""
+ 
+				transforms = {}
+ 
+				self.props_list()
+			   
+				for i in self.sel:
+						name = str(i)
+						startTranslate = cmds.xform(i, q = True, t = True)
+						startRotation = cmds.xform(i, q = True, ro = True)
+ 
+ 
+						tmpDict = {
+												"name": name,
+												"startTrans": startTranslate,
+												"startRot": startRotation
+												}
+											   
+						transforms[i] = tmpDict
+				   
+				   
+				 
+				print transforms
+				path = "C:/tmp/test.transformationData"
+ 
+ 
+ 
+				toBeSaved = json.dumps(transforms , sort_keys = True , ensure_ascii= True , indent = 2)
+				f = open(path, 'w') # w is for writing
+				f.write(toBeSaved)
+				f.close()
+
+
+
+
+		def retrieve_data(self, *args):
+				"""
+				retrieves data, stored in json file
+				and applies it
+				"""
+ 
+				path = "C:/tmp/test.transformationData" #(?)
+				f = open(path)
+				dataFile = json.load(f)
+ 
+ 
+ 
+				#seems to work
+				for k in dataFile :    
+					cmds.xform(k, t = dataFile[k]["startTrans"])
+					cmds.xform(k, ro = dataFile[k]["startRot"])
