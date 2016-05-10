@@ -15,7 +15,7 @@ this script brings up a UI, that can be used to make simple prop rigging and ani
 it was originally created for a specific file (buggy by David Schneider), but can also be used for other maya scenes as well
 for questions, regarding this file, contact davidschneider93@web.de
 author: Stefan Wezel, April 2015
-for feedback or questions, contact stefan_wezel@gmx.de
-special thanks to Arash Hosseini and David Schneider and my mom (not to Brian Brossmer, because he sucks)
+for feedback or questions, contact mail@rigzilla.co.uk
+special thanks to Arash Hosseini and David Schneider and my mom.
 use pythons help() function for further information
 -> help(buggyUI)
